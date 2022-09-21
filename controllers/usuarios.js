@@ -1,42 +1,78 @@
 const { response, request } = require("express");
+const bcrypt = require("bcrypt");
 
-const usuariosGet = (req = request, res = response) => {
+const Usuario = require("../models/usuario");
+const { emailExist } = require("../helpers/db-validators");
+const usuario = require("../models/usuario");
+
+const usuariosGet = async (req = request, res = response) => {
   //const query = req.query;
 
-  const { q, nombre = "No name" } = req.query;
+  //const { q, nombre = "No name" } = req.query;
+  const { limite = 5, desde = 0 } = req.query;
+  /*const usuarios = await Usuario.find({ estado: true })
+    .skip(Number(desde))
+    .limit(Number(limite));
 
+  const total = await Usuario.countDocuments({ estado: true });*/
+  const [total, usuarios] = await Promise.all([
+    Usuario.countDocuments({ estado: true }),
+    Usuario.find({ estado: true }).skip(Number(desde)).limit(Number(limite)),
+  ]);
   res.json({
-    msg: "get API-controller",
-    q,
-    nombre,
+    //lo q esta como comentario es mas lento por los await q tiene, es mejor poner las promesas en un arreglo !!
+    //descomenta y fijate en postman las dos formas
+    total,
+    usuarios,
+    //resp,
   });
 };
 
-const usuariosPut = (req, res = response) => {
+const usuariosPut = async (req, res = response) => {
   //const id=req.params.id
   const { id } = req.params;
+  const { _id, password, google, ...resto } = req.body;
 
-  res.json({
-    msg: "put API-controller",
-    id,
-  });
+  //TODO validar contra base de datos para
+  if (password) {
+    const salt = bcrypt.genSaltSync();
+    resto.password = bcrypt.hashSync(password, salt);
+  }
+
+  const usuario = await Usuario.findByIdAndUpdate(id, resto);
+
+  res.json(usuario);
 };
 
-const usuariosPost = (req, res = response) => {
+const usuariosPost = async (req, res = response) => {
   //const body = req.body;
-  const { nombre, edad } = req.body;
+  const { nombre, correo, password, rol } = req.body;
+
+  const usuario = new Usuario({ nombre, correo, password, rol });
+
+  //Encriptar la constraseña
+  const salt = bcrypt.genSaltSync();
+  usuario.password = bcrypt.hashSync(password, salt);
+
+  //Guardar en dbConnection
+
+  await usuario.save();
 
   res.json({
-    msg: "post API-controller",
-    nombre,
-    edad,
+    usuario,
   });
 };
 
-const usuariosDelete = (req, res = response) => {
-  res.json({
-    msg: "delete API-controller",
-  });
+const usuariosDelete = async (req, res = response) => {
+  const { id } = req.params;
+
+  //Fisicamente lo borramos
+
+  //const usuario = await Usuario.findByIdAndDelete(id);
+
+  const usuario = await Usuario.findByIdAndUpdate(id, { estado: false });
+
+  res.json(usuario);
 };
 
 const usuariosPatch = (req, res = response) => {
